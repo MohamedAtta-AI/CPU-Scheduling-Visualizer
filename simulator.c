@@ -122,7 +122,76 @@ processPtr FCFS() {
 }
 
 
-void startSimulation(int algorithm, int preemptive, int quantum, int count) {
+void simulate(int time, int algorithm, int preemptive, int quantum) {
+    processPtr arrived_process = NULL;
+    int njobs = cur_nproc_JQ;
+
+    // Load arrived jobs into ready queue
+    for (int i = 0; i < cur_nproc_JQ; i++) {
+        if (jobQueue[i]->arrival == time) {
+            arrived_process = removeFromJobQueue(jobQueue[i--]);
+            insertIntoReadyQueue(arrived_process);
+        }
+    }
+    processPtr prevProcess = runningProcess;
+    runningProcess = schedule(algorithm, preemptive, quantum);
+
+    printf("%d: ", time);
+    // if running process changed
+    if (prevProcess != runningProcess) {
+        time_consumed = 0; // reset time consumed for running process
+        if (runningProcess->response == -1) { // response time not recorded yet
+            runningProcess->response = time - runningProcess->arrival;
+        }
+    }
+
+    // Make processes in ready queue wait
+    for (int i = 0; i < cur_nproc_RQ; i++) {
+        if (readyQueue[i]) {
+            readyQueue[i]->waiting++;
+            readyQueue[i]->turnaround++;
+        }
+    }
+
+    // Processes in waiting perform IO operations
+    for (int i = 0; i < cur_nproc_WQ; i++) {
+        if (waitingQueue[i]) {
+            waitingQueue[i]->turnaround++;
+            waitingQueue[i]->io_remaining--;
+
+            // When the I/O operation is completed, add to ready queue
+            if (waitingQueue[i]->io_remaining <= 0) {
+                insertIntoReadyQueue(removeFromWaitingQueue(waitingQueue[i--]));
+            }
+        }
+    }
+
+    // Execute currently running process
+    if (runningProcess != NULL) {
+        runningProcess->turnaround++;
+        runningProcess->cpu_remaining--;
+        time_consumed++;
+
+        // If all processes have completed their execution, send them to the "terminated" state
+        if (runningProcess->cpu_remaining <= 0) {
+            insertIntoTerminated(runningProcess);
+            runningProcess = NULL;
+        }
+        else {
+            // If an I/O operation needs to be performed, send the process to the waiting queue
+            if (runningProcess->io_remaining > 0) {
+                insertIntoWaitingQueue(runningProcess);
+                runningProcess = NULL;
+            }
+        }
+    }
+    else {
+        idle++;
+    }
+}
+
+
+void startSimulation(int algorithm, int preemptive, int quantum, int total_time) {
     loadClone_JQ();
 
     switch (algorithm) {
@@ -145,7 +214,7 @@ void startSimulation(int algorithm, int preemptive, int quantum, int count) {
     idle = 0;
 
     int i;
-    for (i = 0; i < count; i++) {
+    for (i = 0; i < total_time; i++) {
         simulate(i, algorithm, preemptive, quantum);
         if (cur_nproc_T == initial_nproc) {
             ++i;
