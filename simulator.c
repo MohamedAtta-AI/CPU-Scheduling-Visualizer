@@ -4,6 +4,10 @@
 
 #define fcfs 0
 
+#define N_ALGORITHMS 2
+#define QUANTUM 10
+#define EPOCHS 5
+
 #define CPU_BURST_LOWER 5
 #define CPU_BURST_UPPER 15
 
@@ -13,11 +17,12 @@
 #define MAX_ARRIVAL 1000
 #define MAX_NUM_PROC 100
 
-#define N_ALGORITHMS 2
-
+#define FALSE 0
+#define TRUE 1
 
 typedef struct PCB {
     int pid,
+        priority,
         arrival,
         cpu_burst,
         io_burst,
@@ -33,6 +38,9 @@ int start = 0; int end = 0; int idle = 0;
 
 processPtr jobQueue[MAX_NUM_PROC];
 int cur_nproc_JQ = 0;
+
+processPtr cloneJobQueue[MAX_NUM_PROC];
+int cur_nproc_clone_JQ = 0;
 
 processPtr readyQueue[MAX_NUM_PROC];
 int cur_nproc_RQ = 0;
@@ -102,12 +110,230 @@ void clearEvals() {
 }
 
 
+void clone_JQ() {
+    for (int i = 0; i < MAX_NUM_PROC; i++) 
+        cloneJobQueue[i] = NULL;
+
+    for (int i = 0; i < cur_nproc_JQ; i++) {
+        processPtr cloneProcess = (processPtr)malloc(sizeof(PCB));
+        cloneProcess->pid = jobQueue[i]->pid;
+        cloneProcess->priority = jobQueue[i]->priority;
+        cloneProcess->arrival = jobQueue[i]->arrival;
+        cloneProcess->cpu_burst = jobQueue[i]->cpu_burst;
+        cloneProcess->io_burst = jobQueue[i]->io_burst;
+        cloneProcess->cpu_remaining = jobQueue[i]->cpu_remaining;
+        cloneProcess->io_remaining = jobQueue[i]->io_remaining;
+        cloneProcess->waiting = jobQueue[i]->waiting;
+        cloneProcess->turnaround = jobQueue[i]->turnaround;
+        cloneProcess->response = jobQueue[i]->response;
+        cloneJobQueue[i] = cloneProcess;
+    }
+    cur_nproc_clone_JQ = cur_nproc_JQ;
+}
+
+void clear_JQ() {
+    cur_nproc_JQ = 0;
+    for (int i = 0; i < MAX_NUM_PROC; i++) {
+        free(jobQueue[i]);
+        jobQueue[i] = NULL;
+    }
+}
+
+void loadClone_JQ() { // load clone to job queue
+    clear_JQ();
+    for (int i = 0; i < cur_nproc_clone_JQ; i++) {
+        processPtr cloneProcess = (processPtr)malloc(sizeof(PCB));
+        cloneProcess->pid = jobQueue[i]->pid;
+        cloneProcess->priority = jobQueue[i]->priority;
+        cloneProcess->arrival = jobQueue[i]->arrival;
+        cloneProcess->cpu_burst = jobQueue[i]->cpu_burst;
+        cloneProcess->io_burst = jobQueue[i]->io_burst;
+        cloneProcess->cpu_remaining = jobQueue[i]->cpu_remaining;
+        cloneProcess->io_remaining = jobQueue[i]->io_remaining;
+        cloneProcess->waiting = jobQueue[i]->waiting;
+        cloneProcess->turnaround = jobQueue[i]->turnaround;
+        cloneProcess->response = jobQueue[i]->response;
+        cloneJobQueue[i] = cloneProcess;
+    }
+    cur_nproc_clone_JQ = cur_nproc_JQ;
+}
+
+void clearClone_JQ() {
+    for (int i = 0; i < MAX_NUM_PROC; i++) {
+        free(cloneJobQueue[i]);
+        cloneJobQueue[i] = NULL;
+    }
+}
+
+
 int getProcByID_JQ(int pid) {
+    // Return idx of process with the specified PID in ready queue
     for (int i = 0; i < cur_nproc_JQ; i++) {
         if (jobQueue[i]->pid == pid) 
             return i;
     }
     return -1;
+}
+
+int getProcByID_RQ(int pid) {
+    for (int i = 0; i < cur_nproc_RQ; i++) {
+        if (readyQueue[i]->pid == pid) 
+            return i;
+    }
+    return -1;
+}
+
+int getProcByID_WQ(int pid) {
+    for (int i = 0; i < cur_nproc_WQ; i++) {
+        if (waitingQueue[i]->pid == pid) 
+            return i;
+    }
+    return -1;
+}
+
+
+void insertInto_JQ(processPtr p) {
+    if (cur_nproc_JQ < MAX_NUM_PROC) {
+        int temp = getProcByID_JQ(p->pid);
+        if (temp != -1) {
+            printf("ERROR: Process with PID: %d already exists in job queue\n", p->pid);
+            return;
+        }
+        jobQueue[cur_nproc_JQ++] = p;
+    }
+    else {
+        puts("ERROR: Job queue is full");
+        return;
+    }
+}
+
+void insertInto_RQ(processPtr p) {
+    if (cur_nproc_RQ < MAX_NUM_PROC) {
+        int temp = getProcByID_RQ(p->pid);
+        if (temp != -1) {
+            printf("ERROR: Process with PID: %d already exists in ready queue\n", p->pid);
+            return;
+        }
+        readyQueue[cur_nproc_RQ++] = p;
+    }
+    else {
+        puts("ERROR: Ready queue is full");
+        return;
+    }
+}
+
+void insertInto_WQ(processPtr p) {
+    if (cur_nproc_WQ < MAX_NUM_PROC) {
+        int temp = getProcByID_WQ(p->pid);
+        if (temp != -1) {
+            printf("ERROR: Process with PID: %d already exists in waiting queue\n", p->pid);
+            return;
+        }
+        waitingQueue[cur_nproc_WQ++] = p;
+    }
+    else {
+        puts("ERROR: Waiting queue is full");
+        return;
+    }
+}
+
+void insertInto_T(processPtr p) {
+    if (cur_nproc_T < MAX_NUM_PROC) {
+        terminated[cur_nproc_T++] = p;
+    }
+    else {
+        puts("ERROR: Can't terminate process");
+        return;
+    }
+}
+
+
+processPtr removeFrom_JQ(processPtr p) {
+    if (cur_nproc_JQ > 0) {
+        int temp = getProcByID_JQ(p->pid);
+        if (temp == -1) {
+            printf("ERROR: Can't find process with PID: %d\n", p->pid);
+            return NULL;
+        }
+        else {
+            processPtr removed = jobQueue[temp];
+
+            for (int i = temp; i < cur_nproc_JQ - 1; i++)
+                jobQueue[i] = jobQueue[i+1];
+            jobQueue[cur_nproc_JQ - 1] = NULL;
+
+            cur_nproc_JQ--;
+            return removed;
+        }
+    }
+}
+
+processPtr removeFrom_RQ(processPtr p) {
+    if (cur_nproc_RQ > 0) {
+        int temp = getProcByID_RQ(p->pid);
+        if (temp == -1) {
+            printf("ERROR: Can't find process with PID: %d\n", p->pid);
+            return NULL;
+        }
+        else {
+            processPtr removed = readyQueue[temp];
+
+            for (int i = temp; i < cur_nproc_RQ - 1; i++)
+                readyQueue[i] = readyQueue[i+1];
+            readyQueue[cur_nproc_RQ - 1] = NULL;
+
+            cur_nproc_RQ--;
+            return removed;
+        }
+    }
+}
+
+processPtr removeFrom_WQ(processPtr p) {
+    if (cur_nproc_WQ > 0) {
+        int temp = getProcByID_WQ(p->pid);
+        if (temp == -1) {
+            printf("ERROR: Can't find process with PID: %d\n", p->pid);
+            return NULL;
+        }
+        else {
+            processPtr removed = waitingQueue[temp];
+
+            for (int i = temp; i < cur_nproc_WQ - 1; i++)
+                waitingQueue[i] = waitingQueue[i+1];
+            waitingQueue[cur_nproc_WQ - 1] = NULL;
+
+            cur_nproc_WQ--;
+            return removed;
+        }
+    }
+}
+
+
+void evaluate() {
+    puts("\n\t{ Evaluation }\t\n");
+    for (int i = 0; i < cur_eval_num; i++) {
+        puts ("===========================================================");
+        int algorithm = evals[i]->algorithm;
+        int preemptive = evals[i]->preemptive;
+
+        switch (algorithm)
+        {
+        case fcfs:
+            puts("< FCFS Algorithm >");
+            break;
+        
+        default:
+            return;
+        }
+
+        puts ("-----------------------------------------------------------");
+        printf("start time: %d / end time: %d / CPU utilization : %.2lf%% \n",evals[i]->start_time,evals[i]->end_time,evals[i]->cpu_utilization);
+		printf("Average waiting time: %d\n",evals[i]->avg_waiting);
+		printf("Average turnaround time: %d\n",evals[i]->avg_turnaround);
+		printf("Average response time: %d\n",evals[i]->avg_response);
+		printf("Completed: %d\n",evals[i]->completed);
+    }
+    puts ("===========================================================");
 }
 
 
@@ -122,6 +348,63 @@ processPtr FCFS() {
 }
 
 
+void analyze(int algorithm, int preemptive) {
+    int total_wait, total_turnaround, total_response;
+    total_wait = total_turnaround = total_response = 0;
+    processPtr p = NULL;
+    puts("===========================================================");
+    for (int i =0; i < cur_nproc_T; i++) {
+        p = terminated[i];
+        printf("(PID: %d)\n", p->pid);
+        printf("waiting time = %d, ", p->waiting);
+        printf("turnaround time = %d, ", p->turnaround);
+        printf("response time = %d\n", p->response);
+        puts("===========================================================");
+        total_wait += p->waiting;
+        total_turnaround += p->turnaround;
+        total_response += p->response;
+    }
+    printf("start time: %d / end time: %d / CPU utilization : %.2lf%% \n", 
+        start, end, (double)(end - idle)/(end - start)*100);
+
+    if (cur_nproc_T != 0) {
+        printf("Average waiting time: %d\n", total_wait / cur_nproc_T);
+		printf("Average turnaround time: %d\n", total_turnaround / cur_nproc_T);
+		printf("Average response time: %d\n", total_response / cur_nproc_T);
+
+        resultsPtr newRes = (resultsPtr)malloc(sizeof(results));
+        newRes->algorithm = algorithm;
+        newRes->preemptive = preemptive;
+        newRes->start_time = start;
+        newRes->end_time  = end;
+        newRes->avg_waiting = total_wait / cur_nproc_T;
+        newRes->avg_turnaround = total_turnaround / cur_nproc_T;
+        newRes->avg_response = total_response / cur_nproc_T;
+        newRes->cpu_utilization = (double)(end - idle) / (end - start)*100;
+        newRes->completed = cur_nproc_T;
+        evals[cur_eval_num++] = newRes;
+    }
+    printf("Completed: %d\n", cur_nproc_T);
+    puts("===========================================================");
+}
+
+
+processPtr schedule(int algorithm, int preemptive, int quantum) {
+    processPtr selectedProcess = NULL;
+
+    switch (algorithm)
+    {
+    case fcfs:
+        selectedProcess = FCFS();
+        break;
+    
+    default:
+        return NULL;
+    }
+    return selectedProcess;
+}
+
+
 void simulate(int time, int algorithm, int preemptive, int quantum) {
     processPtr arrived_process = NULL;
     int njobs = cur_nproc_JQ;
@@ -129,8 +412,8 @@ void simulate(int time, int algorithm, int preemptive, int quantum) {
     // Load arrived jobs into ready queue
     for (int i = 0; i < cur_nproc_JQ; i++) {
         if (jobQueue[i]->arrival == time) {
-            arrived_process = removeFromJobQueue(jobQueue[i--]);
-            insertIntoReadyQueue(arrived_process);
+            arrived_process = removeFrom_JQ(jobQueue[i--]);
+            insertInto_RQ(arrived_process);
         }
     }
     processPtr prevProcess = runningProcess;
@@ -161,7 +444,7 @@ void simulate(int time, int algorithm, int preemptive, int quantum) {
 
             // When the I/O operation is completed, add to ready queue
             if (waitingQueue[i]->io_remaining <= 0) {
-                insertIntoReadyQueue(removeFromWaitingQueue(waitingQueue[i--]));
+                insertInto_RQ(removeFrom_WQ(waitingQueue[i--]));
             }
         }
     }
@@ -174,13 +457,13 @@ void simulate(int time, int algorithm, int preemptive, int quantum) {
 
         // If all processes have completed their execution, send them to the "terminated" state
         if (runningProcess->cpu_remaining <= 0) {
-            insertIntoTerminated(runningProcess);
+            insertInto_T(runningProcess);
             runningProcess = NULL;
         }
         else {
             // If an I/O operation needs to be performed, send the process to the waiting queue
             if (runningProcess->io_remaining > 0) {
-                insertIntoWaitingQueue(runningProcess);
+                insertInto_WQ(runningProcess);
                 runningProcess = NULL;
             }
         }
@@ -243,6 +526,7 @@ processPtr createProcess(int pid, int priority, int arrival, int cpu_burst, int 
     newProc->waiting = 0;
     newProc->turnaround = 0;
     newProc->response = -1;
+    insertInto_JQ(newProc);
     return newProc;
 }
 
@@ -259,8 +543,8 @@ void initSimulation(int total_nprocs) {
     }
 
     // sortJobQueue();
-    // cloneJobQueue();
-    printJobQueue();
+   clone_JQ();
+    // printJobQueue();
 }
 
 
@@ -268,9 +552,15 @@ void main(int argc, char** argv) {
     initQueues();
     initEvals();
 
-    int total_nprocs = atoi(argv[1]);
+    // int total_nprocs = atoi(argv[1]);
+    int total_nprocs = 10;
     initSimulation(total_nprocs);
 
-    int epochs = atoi(argv[2]);
-    startSimulation(fcfs, );
+    // int epochs = atoi(argv[2]);
+    int epochs = 30;
+    startSimulation(fcfs, FALSE, QUANTUM, epochs);
+    evaluate();
+
+    clearQueues();
+    clearEvals();
 }
