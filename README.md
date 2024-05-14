@@ -1,4 +1,6 @@
 # CPU-Scheduling-Simulator
+A terminal tool built with C for intuitive understanding and simulation of CPU scheduling algorithms in operating systems.
+
 ### Configurations
 This simulation uses a random generator for the processes' attributes, the top of the file contains configurable macros:
 ```c
