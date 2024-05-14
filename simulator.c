@@ -4,8 +4,8 @@
 
 #define MAX_TIME_UNIT INT_MAX
 #define MAX_PROCESS_NUM 100
-#define MAX_RUNS 5
-#define MAX_ALGORITHM_NUM 10
+#define MAX_RUNS 10
+#define MAX_ALGORITHM_NUM 3
 
 #define CPU_BURST_LOWER 5
 #define CPU_BURST_UPPER 15
@@ -737,7 +737,6 @@ void evaluate() {
 		printf("Average response time: %d\n",evals[i]->avg_responseTime);
 		printf("Completed: %d\n",evals[i]->completed);
 	}
-	
 	puts  ("===========================================================");
 }
 
@@ -786,9 +785,6 @@ void main(int argc, char **argv) {
     int totalProcessNum = atoi(argv[1]);
     int totalIOProcessNum = atoi(argv[2]); 
     int runs = atoi(argv[3]);
-    // int totalProcessNum = 3;
-    // int totalIOProcessNum = 1; 
-    // int runs = 2;
     
     for (int i = 0; i < runs; i++) {
         puts  ("===========================================================");
